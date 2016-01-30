@@ -18,24 +18,24 @@ public:
     bool isConnected() const;
     void reconnect();
 
-    QVariant getId() const;
-    void setId(const QVariant &id);
+    QString getId() const;
+    void setId(const QString &id);
 
 protected:
     QTcpSocket *socket;
-    QVariant identifier;
+    QString identifier;
 
     const int DATA_STREAM_VERSION = QDataStream::Qt_5_4;
-    quint16 blockSize;
-    QString messageReceived;
+    int blockSize;
+    QByteArray messageReceived;
 
 signals:
     void connected();
-    void received(QString);
+    void received(QByteArray);
     void nameChanged();
 
 public slots:
-    void send(QString message);
+    void send(QByteArray message);
 
 protected slots:
     void readMessage();

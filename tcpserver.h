@@ -9,12 +9,11 @@ class TcpServer : public QObject
 {
     Q_OBJECT
 public:
-    TcpServer(const QHostAddress &address = QHostAddress::Any, quint16 port = 0);
-    TcpServer(quint16 port);
+    TcpServer();
     ~TcpServer();
 
     bool isListening() const;
-    void listen(const QHostAddress &address, quint16 port);
+    bool listen(const QHostAddress &address, quint16 port);
 
     void removeDisconnected();
     int size();
@@ -26,18 +25,18 @@ protected:
     QList<TcpSocket *> socketList;
 
 signals:
-    void receivedFrom(TcpSocket *, QString);
-    void receivedFrom(QVariant, QString);
+    void receivedFrom(TcpSocket *, QByteArray);
+    void receivedFrom(QVariant, QByteArray);
     void newClientConnected(TcpSocket *);
 
 public slots:
-    void send(QVariant id, QString message);
-    void send(TcpSocket *socket, QString message);
-    void sendToAll(QString message);
+    void send(QVariant id, QByteArray message);
+    void send(TcpSocket *socket, QByteArray message);
+    void sendToAll(QByteArray message);
 
 protected slots:
     void newPendingConnection();
-    void received(QString message);
+    void received(QByteArray message);
 };
 
 #endif // TCPSERVER_H

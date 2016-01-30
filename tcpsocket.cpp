@@ -2,7 +2,7 @@
 
 TcpSocket::TcpSocket() :
     socket(new QTcpSocket),
-    identifier(qrand()),
+    identifier(),
     blockSize(0),
     messageReceived()
 {
@@ -11,7 +11,7 @@ TcpSocket::TcpSocket() :
 
 TcpSocket::TcpSocket(QTcpSocket *socket) :
     socket(socket),
-    identifier(qrand()),
+    identifier(),
     blockSize(0),
     messageReceived()
 {
@@ -47,18 +47,18 @@ void TcpSocket::reconnect()
         socket->waitForConnected(3000);
 }
 
-QVariant TcpSocket::getId() const
+QString TcpSocket::getId() const
 {
     return identifier;
 }
 
-void TcpSocket::setId(const QVariant &id)
+void TcpSocket::setId(const QString &id)
 {
     identifier = id;
     emit nameChanged();
 }
 
-void TcpSocket::send(QString message)
+void TcpSocket::send(QByteArray message)
 {
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);

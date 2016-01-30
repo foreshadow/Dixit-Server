@@ -1,16 +1,8 @@
 #include "tcpserver.h"
 
-TcpServer::TcpServer(const QHostAddress &address, quint16 port) :
+TcpServer::TcpServer() :
     server(new QTcpServer),
-    listeningStatus(false/*server->listen(address, port)*/),
-    socketList()
-{
-    connect(server, SIGNAL(newConnection()), this, SLOT(newPendingConnection()));
-}
-
-TcpServer::TcpServer(quint16 port) :
-    server(new QTcpServer),
-    listeningStatus(false/*server->listen(QHostAddress::Any, port)*/),
+    listeningStatus(false),
     socketList()
 {
     connect(server, SIGNAL(newConnection()), this, SLOT(newPendingConnection()));
@@ -26,10 +18,11 @@ bool TcpServer::isListening() const
     return listeningStatus;
 }
 
-void TcpServer::listen(const QHostAddress &address, quint16 port)
+bool TcpServer::listen(const QHostAddress &address, quint16 port)
 {
-    if (!isListening())
+    if (isListening() == false)
         listeningStatus = server->listen(address, port);
+    return isListening();
 }
 
 void TcpServer::removeDisconnected()
@@ -50,7 +43,7 @@ const QList<TcpSocket *> &TcpServer::getSocketList() const
     return socketList;
 }
 
-void TcpServer::send(QVariant id, QString message)
+void TcpServer::send(QVariant id, QByteArray message)
 {
     foreach (TcpSocket *socket, socketList)
     {
@@ -62,12 +55,12 @@ void TcpServer::send(QVariant id, QString message)
     }
 }
 
-void TcpServer::send(TcpSocket *socket, QString message)
+void TcpServer::send(TcpSocket *socket, QByteArray message)
 {
     socket->send(message);
 }
 
-void TcpServer::sendToAll(QString message)
+void TcpServer::sendToAll(QByteArray message)
 {
     foreach (TcpSocket *socket, socketList)
     {
@@ -78,12 +71,12 @@ void TcpServer::sendToAll(QString message)
 void TcpServer::newPendingConnection()
 {
     TcpSocket *socket = new TcpSocket(server->nextPendingConnection());
-    connect(socket, SIGNAL(received(QString)), this, SLOT(received(QString)));
+    connect(socket, SIGNAL(received(QByteArray)), this, SLOT(received(QByteArray)));
     socketList << socket;
     emit newClientConnected(socket);
 }
 
-void TcpServer::received(QString message)
+void TcpServer::received(QByteArray message)
 {
     TcpSocket *socket = qobject_cast<TcpSocket *>(sender());
     emit receivedFrom(socket->getId(), message);

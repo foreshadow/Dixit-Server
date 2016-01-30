@@ -2,14 +2,24 @@
 
 #include <QtNetwork>
 #include <iostream>
+#include <numeric>
+#include <vector>
+
+#include "serverdata.h"
+#include "clientdata.h"
 
 Server::Server(QObject *parent) :
-    QObject(parent),
-    server(new TcpServer)
+    QObject(parent), status(Status::BEFORE_GAME_WAITING),
+    server(new TcpServer), timeline(), deck()
 {
+    timeline.addEvent("DESCRIBE", 45000);
+    timeline.addEvent("PLAY"    , 45000);
+    timeline.addEvent("SELECT"  , 45000);
+    timeline.addEvent("SETTLE"  , 15000);
+    connect(&timeline, SIGNAL(enterEvent(QString)), this, SLOT(enterStage(QString)));
     connect(server, SIGNAL(newClientConnected(TcpSocket *)), this, SLOT(newClient(TcpSocket*)));
-    connect(server, SIGNAL(receivedFrom(TcpSocket *, QString)), this, SLOT(received(TcpSocket *, QString)));
-    connect(server, SIGNAL(receivedFrom(QVariant, QString)), this, SLOT(received(QVariant, QString)));
+    connect(server, SIGNAL(receivedFrom(TcpSocket *, QByteArray)), this, SLOT(received(TcpSocket *, QByteArray)));
+    connect(server, SIGNAL(receivedFrom(QVariant, QByteArray)), this, SLOT(received(QVariant, QByteArray)));
 }
 
 Server::~Server()
@@ -28,67 +38,119 @@ void Server::info(QString message)
     std::cout << (QTime::currentTime().toString() + " [INFO] " + message).toStdString() << std::endl;
 }
 
+void Server::sendServerData(TcpSocket *socket, ServerData sd)
+{
+    QByteArray ba;
+    QDataStream ds(&ba, QIODevice::WriteOnly);
+    ds.setVersion(QDataStream::Qt_5_4);
+    ds << sd;
+    socket->send(ba);
+}
+
 void Server::newClient(TcpSocket *socket)
 {
+    Q_UNUSED(socket);
     info("New connection");
-    socket->send("/ACCEPT");
 }
 
-void Server::received(TcpSocket *socket, QString message) // not completed
+void Server::sendServerDataToAll(ServerData sd)
 {
-    info(playerList.findPlayer(socket)->getId() + " : " + message);
-    if (message.left(1) == "/")
+    QByteArray ba;
+    QDataStream ds(&ba, QIODevice::WriteOnly);
+    ds.setVersion(QDataStream::Qt_5_4);
+    ds << sd;
+    server->sendToAll(ba);
+}
+
+void Server::gameStart()
+{
+    declarer.shuffle();
+    if (status != Status::BEFORE_GAME_WAITING)
+        return;
+    info("Drawing cards");
+    deck.initialize();
+    for (int i = 0; i < playerList.size(); i++)
     {
-        QStringList argv = message.right(message.size() - 1).split(" ");
-#define ARGC_CHECK(n) if (argv.size() < n) return;
-        ARGC_CHECK(1);
-        QString &operation = argv[0];
-        if (operation == "ID")
-        {
-            ARGC_CHECK(2);
-            if (socket->getId() == "")
-                socket->setId(argv[1]);
-        }
-        else if (operation == "READY")
-        {
-            if (socket->getId() == "")
-            {
-                info("Empty id.");
-                return;
-            }
-            if (playerList.findPlayer(socket->getId()))
-            {
-                info("Duplicate ids : " + socket->getId() + " denying.");
-                return;
-            }
-            playerList.addPlayer(new Player(socket->getId(), socket));
-            server->sendToAll(message + " " + socket->getId());
-        }
-        else if (operation == "DESC")
-            server->sendToAll(message);
-        else if (operation == "PLAY")
-            server->sendToAll("/PLAY " + socket->getId());
-        else if (operation == "SYNC")
-            ;
-        else if (operation == "SELECT")
-            server->sendToAll("/SELECT " + socket->getId());
-        else if (operation == "PHRASE")
-        {
-            ARGC_CHECK(2);
-            server->sendToAll("/PHRASE " + argv[1] + " " + socket->getId());
-        }
-#undef ARGC_CHECK
+        QList<int> list;
+        for (int j = 0; j < 6; j++)
+            list.append(deck.draw());
+        sendServerData(playerList.getList().at(i)->getSocket(), ServerData(ServerData::DRAW, list));
     }
-    else
+    info("Game start");
+    timeline.start();
+}
+
+void Server::handle(TcpSocket *socket, const ClientData &cd)
+{
+    switch (cd.getType())
     {
-        server->sendToAll(message);
+    case ClientData::CHAT:
+        sendServerDataToAll(ServerData(ServerData::CHAT, cd.getFromUser(), cd.getContent()));
+        break;
+    case ClientData::PHRASE:
+        sendServerDataToAll(ServerData(ServerData::PHRASE, cd.getFromUser(), cd.getContent()));
+        break;
+    case ClientData::SET_ID:
+        // not used
+        break;
+    case ClientData::READY:
+        playerList.addPlayer(new Player(cd.getFromUser(), socket));
+        declarer.add(cd.getFromUser());
+        info(cd.getFromUser() + " is ready.");
+        sendServerDataToAll(ServerData(ServerData::READY, cd.getFromUser()));
+        if (status == Status::BEFORE_GAME_WAITING && playerList.size() >= 6)
+            gameStart();
+        break;
+    case ClientData::DESC:
+        sendServerDataToAll(ServerData(ServerData::DESC, cd.getFromUser(), cd.getContent()));
+        break;
+    case ClientData::PLAY:
+        sendServerDataToAll(ServerData(ServerData::PLAY, cd.getFromUser(), cd.getContent(), cd.getCards()));
+        break;
+    case ClientData::SYNC:
+        // to do
+        break;
+    case ClientData::SELECT:
+        sendServerDataToAll(ServerData(ServerData::SELECT, cd.getFromUser(), cd.getContent(), cd.getCards()));
+        break;
     }
 }
 
-void Server::received(QVariant id, QString message)
+void Server::received(TcpSocket *socket, QByteArray message)
+{
+    handle(socket, ClientData(QDataStream(message)));
+}
+
+void Server::received(QVariant id, QByteArray message)
 {
     // not used
     Q_UNUSED(id);
     Q_UNUSED(message);
+}
+
+void Server::enterStage(QString stage)
+{
+    info(QString("Entering stage %1, ends at %2").arg(stage)
+         .arg(QTime::currentTime().addMSecs(timeline.remainingMsecs()).toString()));
+    if (stage == "DESCRIBE")
+    {
+        status = Status::IN_GAME_DESCRIBING;
+        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.next(), "DESC"));
+    }
+    else if (stage == "PLAY")
+    {
+        status = Status::IN_GAME_PLAYING;
+        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "PLAY"));
+    }
+    else if (stage == "SELECT")
+    {
+        status = Status::IN_GAME_SELECTING;
+        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "SELECT"));
+    }
+    else if (stage == "SETTLE")
+    {
+        status = Status::IN_GAME_SETTLING;
+        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "SETTLE"));
+    }
 }
 
