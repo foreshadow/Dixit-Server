@@ -74,7 +74,7 @@ void Server::gameStart()
         QList<int> list;
         for (int j = 0; j < 6; j++)
             list.append(deck.draw());
-        sendServerData(playerList.getList().at(i)->getSocket(), ServerData(ServerData::DRAW, list));
+        sendServerData(playerList.getList().at(i)->getSocket(), ServerData(ServerData::Type::DRAW, list));
     }
     info("Game start");
     timeline.start();
@@ -84,34 +84,35 @@ void Server::handle(TcpSocket *socket, const ClientData &cd)
 {
     switch (cd.getType())
     {
-    case ClientData::CHAT:
-        sendServerDataToAll(ServerData(ServerData::CHAT, cd.getFromUser(), cd.getContent()));
+    case ClientData::Type::CHAT:
+        sendServerDataToAll(ServerData(ServerData::Type::CHAT, cd.getFromUser(), cd.getContent()));
         break;
-    case ClientData::PHRASE:
-        sendServerDataToAll(ServerData(ServerData::PHRASE, cd.getFromUser(), cd.getContent()));
+    case ClientData::Type::PHRASE:
+        sendServerDataToAll(ServerData(ServerData::Type::PHRASE, cd.getFromUser(), cd.getContent()));
         break;
-    case ClientData::SET_ID:
+    case ClientData::Type::SET_ID:
         // not used
         break;
-    case ClientData::READY:
+    case ClientData::Type::READY:
         playerList.addPlayer(new Player(cd.getFromUser(), socket));
         declarer.add(cd.getFromUser());
         info(cd.getFromUser() + " is ready.");
-        sendServerDataToAll(ServerData(ServerData::READY, cd.getFromUser()));
+        sendServerDataToAll(ServerData(ServerData::Type::READY, cd.getFromUser()));
         if (status == Status::BEFORE_GAME_WAITING && playerList.size() >= 6)
             gameStart();
         break;
-    case ClientData::DESC:
-        sendServerDataToAll(ServerData(ServerData::DESC, cd.getFromUser(), cd.getContent()));
+    case ClientData::Type::DESC:
+        if (cd.getFromUser() == declarer.current())
+            sendServerDataToAll(ServerData(ServerData::Type::DESC, cd.getFromUser(), cd.getContent()));
         break;
-    case ClientData::PLAY:
-        sendServerDataToAll(ServerData(ServerData::PLAY, cd.getFromUser(), cd.getContent(), cd.getCards()));
+    case ClientData::Type::PLAY:
+        sendServerDataToAll(ServerData(ServerData::Type::PLAY, cd.getFromUser(), cd.getContent(), cd.getCards()));
         break;
-    case ClientData::SYNC:
+    case ClientData::Type::SYNC:
         // to do
         break;
-    case ClientData::SELECT:
-        sendServerDataToAll(ServerData(ServerData::SELECT, cd.getFromUser(), cd.getContent(), cd.getCards()));
+    case ClientData::Type::SELECT:
+        sendServerDataToAll(ServerData(ServerData::Type::SELECT, cd.getFromUser(), cd.getContent(), cd.getCards()));
         break;
     }
 }
@@ -135,22 +136,22 @@ void Server::enterStage(QString stage)
     if (stage == "DESCRIBE")
     {
         status = Status::IN_GAME_DESCRIBING;
-        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.next(), "DESC"));
+        sendServerDataToAll(ServerData(ServerData::Type::SYNC, declarer.next(), "DESC"));
     }
     else if (stage == "PLAY")
     {
         status = Status::IN_GAME_PLAYING;
-        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "PLAY"));
+        sendServerDataToAll(ServerData(ServerData::Type::SYNC, declarer.current(), "PLAY"));
     }
     else if (stage == "SELECT")
     {
         status = Status::IN_GAME_SELECTING;
-        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "SELECT"));
+        sendServerDataToAll(ServerData(ServerData::Type::SYNC, declarer.current(), "SELECT"));
     }
     else if (stage == "SETTLE")
     {
         status = Status::IN_GAME_SETTLING;
-        sendServerDataToAll(ServerData(ServerData::SYNC, declarer.current(), "SETTLE"));
+        sendServerDataToAll(ServerData(ServerData::Type::SYNC, declarer.current(), "SETTLE"));
     }
 }
 
