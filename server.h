@@ -4,11 +4,10 @@
 #include <QObject>
 
 #include "tcpserver.h"
-#include "playerlist.h"
 #include "serverdata.h"
 #include "clientdata.h"
+#include "dixitgame.h"
 #include "timeline.h"
-#include "declarer.h"
 #include "deck.h"
 
 class Server : public QObject
@@ -28,20 +27,8 @@ private:
     static void info(QString message);
 
 protected:
-    enum class Status
-    {
-        BEFORE_GAME_WAITING,
-        IN_GAME_DESCRIBING,
-        IN_GAME_PLAYING,
-        IN_GAME_SELECTING,
-        IN_GAME_SETTLING,
-        AFTER_GAME
-    };
-
-    Status status;
-    PlayerList playerList;
-    Declarer declarer;
-
+    QList<Player> playerList;
+    DixitGame *dixit;
     TcpServer *server;
     TimeLine timeline;
     Deck deck;
@@ -53,6 +40,11 @@ public slots:
     void received(TcpSocket *socket, QByteArray message);
     void received(QVariant id, QByteArray message);
     void enterStage(QString stage);
+    void message(QString message);
+    void descFin();
+    void playFin();
+    void seleFin();
+    void settFin();
 };
 
 #endif // SERVER_H

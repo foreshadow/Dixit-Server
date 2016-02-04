@@ -20,21 +20,19 @@ SOURCES += main.cpp \
     tcpsocket.cpp \
     server.cpp \
     player.cpp \
-    playerlist.cpp \
     clientdata.cpp \
     serverdata.cpp \
     deck.cpp \
     timeline.cpp \
-    declarer.cpp
+    dixitgame.cpp
 
 HEADERS += \
     tcpserver.h \
     tcpsocket.h \
     server.h \
     player.h \
-    playerlist.h \
     clientdata.h \
     serverdata.h \
     deck.h \
     timeline.h \
-    declarer.h
+    dixitgame.h
