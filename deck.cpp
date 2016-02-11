@@ -14,6 +14,7 @@ Deck::~Deck()
 
 void Deck::initialize(unsigned size)
 {
+    list.clear();
     for (unsigned i = 1; i <= size; i++)
         list.append(i);
 }

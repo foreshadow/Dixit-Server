@@ -24,11 +24,13 @@ public:
 
 protected:
     QTimer timer;
+    QTimer clicker;
     QList<TimeLineEvent> list;
     int cur;
     int loop;
 
 signals:
+    void click();
     void timeout();
     void newLoop();
     void leaveEvent(QString);

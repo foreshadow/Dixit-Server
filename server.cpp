@@ -23,6 +23,7 @@ Server::Server(QObject *parent) :
     connect(dixit, SIGNAL(descriptionChanged()), this, SLOT(descFin()));
     connect(dixit, SIGNAL(allPlayed()), this, SLOT(playFin()));
     connect(dixit, SIGNAL(allSelected()), this, SLOT(seleFin()));
+    connect(&timeline, SIGNAL(click()), this, SLOT(updateMessage()));
 }
 
 Server::~Server()
@@ -73,9 +74,11 @@ void Server::gameStart()
     deck.initialize();
     for (int i = 0; i < dixit->playerList().size(); i++)
     {
+        info(QString("Drawing cards for the %1 of %2 players").arg(i + 1).arg(dixit->playerList().size()));
         QList<int> list;
         for (int j = 0; j < 6; j++)
             list.append(deck.draw());
+        info(QString("Cards: %1 %2 %3 %4 %5 %6").arg(list[0]).arg(list[1]).arg(list[2]).arg(list[3]).arg(list[4]).arg(list[5]));
         dixit->playerList()[i].setHandCards(list);
         sendServerData(dixit->playerList()[i].getSocket(), ServerData(ServerData::Type::DRAW, list));
     }
@@ -90,50 +93,68 @@ void Server::handle(TcpSocket *socket, const ClientData &cd)
     switch (cd.getType())
     {
     case ClientData::Type::CHAT:
+        info(cd.getFromUser() + " : " + cd.getContent());
         sendServerDataToAll(ServerData(ServerData::Type::CHAT, cd.getFromUser(), cd.getContent()));
         break;
     case ClientData::Type::PHRASE:
         sendServerDataToAll(ServerData(ServerData::Type::PHRASE, cd.getFromUser(), cd.getContent()));
         break;
     case ClientData::Type::SET_ID:
-        // not used
+    {
+        onlineUser.append(Player(cd.getFromUser(), socket));
+        QStringList l;
+        for (Player p : onlineUser)
+            l.append(p.getId());
+        sendServerData(socket, ServerData(ServerData::Type::CHAT, "SERVER",
+                                          QString("当前在线:\n  %1").arg(l.join("\n  "))));
         break;
+    }
     case ClientData::Type::READY:
         if (dixit->status() != DixitGame::Status::DIXIT_BEFORE_GAME)
             break;
-        playerList.append(Player(cd.getFromUser(), socket));
         dixit->playerList().append(Player(cd.getFromUser(), socket));
+    {// ugly
+        static int cc = 1;
+        dixit->playerList().back().setColor(Player::Color(cc++));
+    }
         info(cd.getFromUser() + " is ready.");
         sendServerDataToAll(ServerData(ServerData::Type::SYNC, *dixit));
         sendServerDataToAll(ServerData(ServerData::Type::READY, cd.getFromUser()));
-        if (dixit->isPlaying() == false && playerList.size() >= 6)
+        if (dixit->isPlaying() == false && dixit->playerList().size() >= 6)
             gameStart();
         break;
     case ClientData::Type::DESC:
         if (dixit->status() == DixitGame::Status::DIXIT_IN_GAME_DESCRIBING
                 && cd.getFromUser() == dixit->currentPlayer()->getId())
         {
-            sendServerDataToAll(ServerData(ServerData::Type::DESC, cd.getFromUser(), cd.getContent()));
             dixit->setDescription(cd.getContent());
+            sendServerDataToAll(ServerData(ServerData::Type::DESC, cd.getFromUser(), cd.getContent()));
+            info(QString("Player %1 described %2").arg(cd.getFromUser()).arg(cd.getContent()));
         }
         break;
     case ClientData::Type::PLAY:
         if (dixit->status() == DixitGame::Status::DIXIT_IN_GAME_PLAYING
                 && dixit->findPlayer(socket)->getPlayed() == false)
         {
-            sendServerDataToAll(ServerData(ServerData::Type::PLAY, cd.getFromUser(), cd.getContent(), cd.getCards()));
-            dixit->findPlayer(socket)->setPlayed();
+            info(QString("Player %1 played card %2").arg(cd.getFromUser()).arg(cd.getCards().front()));
+            if (dixit->play(socket, cd.getCards().front()))
+            {
+                sendServerDataToAll(ServerData(ServerData::Type::PLAY, cd.getFromUser(), cd.getContent(), cd.getCards()));
+            }
         }
         break;
     case ClientData::Type::SYNC:
         sendServerData(socket, ServerData(ServerData::Type::SYNC, *dixit));
         break;
     case ClientData::Type::SELECT:
+        info(QString("Player %1 selected card %2").arg(cd.getFromUser()).arg(cd.getCards().front()));
+        // SEVERE: to-do
         if (dixit->status() == DixitGame::Status::DIXIT_IN_GAME_SELECTING
                 && dixit->findPlayer(socket)->getSelected() == false)
         {
+            info("accepted");
+            dixit->select(socket, cd.getCards().front());
             sendServerDataToAll(ServerData(ServerData::Type::SELECT, cd.getFromUser(), cd.getContent(), cd.getCards()));
-            dixit->findPlayer(socket)->setSelected();
         }
         break;
     }
@@ -157,6 +178,9 @@ void Server::enterStage(QString stage)
          .arg(QTime::currentTime().addMSecs(timeline.remainingMsecs()).toString()));
     if (stage == "DESCRIBE")
     {
+        dixit->clearTable();
+        sendServerDataToAll(ServerData(ServerData::Type::SYNC, *dixit));
+
         int c = dixit->currentPlayer()->getSeat();
         dixit->currentPlayer()->setActive(false);
         c = (c + 1) % dixit->playerList().size();
@@ -184,6 +208,12 @@ void Server::enterStage(QString stage)
 void Server::message(QString message)
 {
     sendServerDataToAll(ServerData(ServerData::Type::CHAT, "SERVER", message));
+}
+
+void Server::updateMessage()
+{
+    if (dixit->message().isEmpty() == false)
+        sendServerDataToAll(ServerData(ServerData::Type::CHAT, "SERVER", dixit->message()));
 }
 
 void Server::descFin()

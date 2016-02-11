@@ -71,7 +71,7 @@ void DixitGame::setStatus(DixitGame::Status status)
 {
     if (s == status)
         return;
-    if (s == DixitGame::Status::DIXIT_IN_GAME_SETTLING)
+    if (s == DixitGame::Status::DIXIT_IN_GAME_DESCRIBING)
         clearStatus();
     s = status;
     emit statusChanged();
@@ -163,13 +163,13 @@ void DixitGame::describe(DixitGame::UniqueId uid, const QString &desc)
     setMessage();
 }
 
-void DixitGame::play(DixitGame::UniqueId uid, int card)
+bool DixitGame::play(DixitGame::UniqueId uid, int card)
 {
     Player *pp = findPlayer(uid);
     if (pp == nullptr)
-        return;
+        return false;
     if (pp->getPlayed())
-        return;
+        return false;
     pp->setPlayed();
     pp->getHandCards().removeAll(card);
     addToTable(card);
@@ -180,17 +180,18 @@ void DixitGame::play(DixitGame::UniqueId uid, int card)
         setMessage();
         emit allPlayed();
     }
+    return true;
 }
 
-void DixitGame::select(DixitGame::UniqueId uid, int card)
+bool DixitGame::select(DixitGame::UniqueId uid, int card)
 {
     Player *pp = findPlayer(uid);
     if (pp == nullptr)
-        return;
+        return false;
     if (pp->getActive())
-        return;
+        return false;
     if (pp->getSelected())
-        return;
+        return false;
     pp->setSelected(card);
     if (notYetSelected() > 0)
         setMessage(QString("还有%1位玩家未选择。").arg(notYetSelected()));
@@ -199,6 +200,7 @@ void DixitGame::select(DixitGame::UniqueId uid, int card)
         setMessage();
         emit allSelected();
     }
+    return true;
 }
 
 QDataStream &operator <<(QDataStream &ds, const DixitGame &dixitGame)
@@ -224,7 +226,7 @@ void DixitGame::clearStatus()
     for (Player &player : p)
     {
         player.setPlayed(false);
-        player.setSelected(false);
+        player.setSelected(player.getActive());
     }
 }
 

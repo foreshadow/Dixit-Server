@@ -41,6 +41,7 @@ ServerData::ServerData(ServerData::Type t, const QString &fromUser, int card)
 ServerData::ServerData(ServerData::Type t, const DixitGame &dixitGame)
 {
     m["type"] = int(t);
+    m["content"] = "GAME";
     QByteArray bytes;
     QDataStream ds(&bytes, QIODevice::WriteOnly);
     ds.setVersion(QDataStream::Qt_5_4);

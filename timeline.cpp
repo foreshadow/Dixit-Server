@@ -5,6 +5,8 @@ TimeLine::TimeLine() : timer(), list(), cur(-1), loop(0)
     timer.setSingleShot(true);
     connect(&timer, SIGNAL(timeout()), this, SLOT(next()));
     connect(&timer, SIGNAL(timeout()), this, SIGNAL(timeout()));
+
+    connect(&clicker, SIGNAL(timeout()), this, SIGNAL(click()));
 }
 
 TimeLine::~TimeLine()
@@ -58,6 +60,8 @@ void TimeLine::start()
     cur = 0;
     timer.start(list[cur].msecs);
     emit enterEvent(list[cur].name);
+
+    clicker.start(5000);
 }
 
 void TimeLine::next()

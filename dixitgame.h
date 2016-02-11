@@ -47,8 +47,8 @@ public:
 
     void ready(UniqueId uid);
     void describe(UniqueId uid, const QString &desc);
-    void play(UniqueId uid, int card);
-    void select(UniqueId uid, int card);
+    bool play(UniqueId uid, int card);
+    bool select(UniqueId uid, int card);
 
     friend QDataStream &operator <<(QDataStream &ds, const DixitGame &dixitGame);
     friend void operator >>(QDataStream &ds, DixitGame& dixitGame);

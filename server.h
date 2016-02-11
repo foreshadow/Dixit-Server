@@ -27,7 +27,7 @@ private:
     static void info(QString message);
 
 protected:
-    QList<Player> playerList;
+    QList<Player> onlineUser;
     DixitGame *dixit;
     TcpServer *server;
     TimeLine timeline;
@@ -41,6 +41,7 @@ public slots:
     void received(QVariant id, QByteArray message);
     void enterStage(QString stage);
     void message(QString message);
+    void updateMessage();
     void descFin();
     void playFin();
     void seleFin();
